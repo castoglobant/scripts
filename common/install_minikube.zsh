@@ -19,14 +19,13 @@ echo $SEPARATOR
 echo ">>>>> INSTAL K8 Developer Utilities ................"
 echo $SEPARATOR
 
-if is_true $to_update && [ "$MY_OS" = "linux" ]; then
-    sudo aptitude update -y
-fi
 
 if [ "$MY_OS" = "darwin" ]; then
   sysctl kern.hv_support
-  exist_cmd docker || brew cask install docker
-  exist_cmd docker && is_true $to_update && brew cask upgrade docker
+  exist_cmd docker || brew install docker && brew link docker
+  exist_cmd docker && is_true $to_update && brew reinstall docker && brew link docker
+
+   exist_cmd docker-compose || brew install docker-compose
 fi
 if [ "$MY_OS" = "linux" ]; then
   egrep --color 'vmx|svm' /proc/cpuinfo
@@ -50,8 +49,14 @@ if [ "$MY_OS" = "linux" ]; then
 fi
 
 if [ "$MY_OS" = "darwin" ]; then
-  (is_false $to_update && exist_cmd docker-machine-driver-hyperkit) || {
+(is_false $to_update && exist_cmd hyperkit) || {
     echo "INSTALL HYPERKIT";
+    brew install hyperkit || brew reinstall hyperkit
+    brew link hyperkit || brew unlink hyperkit && brew link hyperkit
+  }
+
+  (is_false $to_update && exist_cmd docker-machine-driver-hyperkit) || {
+    echo "INSTALL docker-machine-driver-HYPERKIT";
     curl -LO https://storage.googleapis.com/minikube/releases/latest/docker-machine-driver-hyperkit \
     && chmod +x docker-machine-driver-hyperkit \
     && sudo mv docker-machine-driver-hyperkit /usr/local/bin/ \
@@ -98,11 +103,18 @@ fi
 
 (is_false $to_update && exist_cmd kubeseal ) || {
   echo "INSTALL KUBESEAL";
-  release=$(get_github_latest_release "bitnami-labs/sealed-secrets" "v0.8.1")
-  echo "VERSION ($release)"
-  curl -fSLo kubeseal https://github.com/bitnami-labs/sealed-secrets/releases/download/$release/kubeseal-$MY_OS-amd64;
+  release=$(get_github_latest_release "bitnami-labs/sealed-secrets" "v0.17.0")
+  srelease="${release:1}"
+  echo "VERSION ($release -- $srelease)"
+  # https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.18.0/kubeseal-0.18.0-darwin-amd64.tar.gz
+  # curl -fSLo kubeseal https://github.com/bitnami-labs/sealed-secrets/releases/download/$release/kubeseal-$MY_OS-amd64;
+  URL_KSEAL=https://github.com/bitnami-labs/sealed-secrets/releases/download/${release}/kubeseal-${srelease}-${MY_OS}-amd64.tar.gz
+  echo ${URL_KSEAL}
+  curl -fSLo kubeseal.tar.gz ${URL_KSEAL}
+  tar xvzf kubeseal.tar.gz
   chmod +x kubeseal;
   sudo mv kubeseal /usr/local/bin;
+  rm kubeseal.tar.gz README.md LICENSE
 }
 
 (is_false $to_update && exist_cmd skaffold) || {
@@ -110,14 +122,6 @@ fi
   curl -fSLo skaffold https://storage.googleapis.com/skaffold/releases/latest/skaffold-$MY_OS-amd64;
   chmod +x skaffold;
   sudo mv skaffold /usr/local/bin;
-}
-
-(is_false $to_update && exist_cmd helm ) || {
-  echo "INSTALL HELM";
-  release=$(get_github_latest_release "helm/helm" "v3.0.0-rc.3")
-  echo "VERSION ($release)"
-  curl -L https://git.io/get_helm.sh | bash
-  helm init
 }
 
 exist_cmd kubectx || brew install kubectx
@@ -166,4 +170,3 @@ kubeseal --version
 printf ":: $SEPARATOR\n "
 
 echo
-
